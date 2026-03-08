@@ -1,0 +1,18 @@
+[package]
+name = "vene_clicker"
+version = "2.0.0"
+edition = "2021"
+description = "Rust rewrite of VeneClicker"
+license = "MIT"
+
+[dependencies]
+eframe = { version = "0.31", default-features = true }
+egui = "0.31"
+parking_lot = "0.12"
+rand = "0.8"
+rdev = "0.5"
+windows-sys = { version = "0.59", features = [
+    "Win32_Media_Multimedia",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_WindowsAndMessaging",
+] }
