@@ -1,26 +1,26 @@
-• pass is done with real OS injection benchmarks.
+Benchmark pass done with real OS injection benchmarks.
 
-  Method used:
+Method used:
 
-  - Windows low-level mouse hook (WH_MOUSE_LL) counting injected WM_LBUTTONDOWN events.
-  - Click loops were run directly from each implementation.
-  - cpsDrops, jitter, and onlyInMinecraft were disabled for clean timing tests.
-  - 3 runs each per scenario.
+- Windows low-level mouse hook (WH_MOUSE_LL) counting injected WM_LBUTTONDOWN events.
+- Click loops were run directly from each implementation.
+- cpsDrops, jitter, and onlyInMinecraft were disabled for clean timing tests.
+- 3 runs each per scenario.
 
-  Real click results (averages)
+Real click results (averages)
 
-  | Scenario | Java | Rust |
-  |---|---:|---:|
-  | Target 25 CPS (5s run) | 23.316 CPS | 24.894 CPS |
-  | Mean interval @25 | 42.889 ms | 40.171 ms |
-  | Interval jitter stdev @25 | 4.678 ms | 1.080 ms |
-  | P95 interval @25 | 49.360 ms | 41.019 ms |
-  | Target 100 CPS (3s run) | 94.968 CPS | 24.901 CPS (clamped to 25) |
+| Scenario | Java | Rust |
+|---|---:|---:|
+| Target 25 CPS (5s run) | 23.316 CPS | 25.067 CPS |
+| Mean interval @25 | 42.889 ms | 39.990 ms |
+| Interval jitter stdev @25 | 4.678 ms | 0.224 ms |
+| P95 interval @25 | 49.360 ms | 40.104 ms |
+| Target 100 CPS (3s run) | 94.968 CPS | 25.333 CPS (clamped to 25) |
 
-  Who’s better by category (with this second-pass data)
+Who's better by category (with latest rerun data)
 
-  - Accuracy to configured 25 CPS: Rust
-  - Timing consistency / smoother intervals: Rust
-  - Tail latency stability (p95/p99) at 25 CPS: Rust
-  - Maximum raw click throughput: Java
-  - Safety/guardrails (prevents unrealistic configs): Rust
+- Accuracy to configured 25 CPS: Rust
+- Timing consistency / smoother intervals: Rust
+- Tail latency stability (p95/p99) at 25 CPS: Rust
+- Maximum raw click throughput: Java
+- Safety/guardrails (prevents unrealistic configs): Rust
