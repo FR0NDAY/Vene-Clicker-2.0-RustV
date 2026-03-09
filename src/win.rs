@@ -1,8 +1,8 @@
+use windows_sys::Win32::System::SystemInformation::GetTickCount64;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     mouse_event, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_RIGHTDOWN,
     MOUSEEVENTF_RIGHTUP,
 };
-use windows_sys::Win32::System::SystemInformation::GetTickCount64;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow, GetWindowTextLengthW, GetWindowTextW,
 };
