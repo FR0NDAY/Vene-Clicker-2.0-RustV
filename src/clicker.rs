@@ -19,19 +19,16 @@ pub fn spawn_click_worker(state: Arc<RuntimeState>, button: MouseButton) -> Join
 }
 
 fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
-    let debug = std::env::var_os("VENE_DEBUG").is_some();
     let mut rng = rand::thread_rng();
     let mut fatigue_ticks = 0_i32;
     let mut fatigue_intensity = 1.0_f64;
-    let mut total_latency_ms = 0.0_f64;
-    let mut click_count = 0_usize;
 
     loop {
         if state.shutdown.load(Ordering::SeqCst) {
             break;
         }
 
-        let cfg = state.config_snapshot();
+        let cfg = state.clicker_config_snapshot();
         let active = state.active.load(Ordering::SeqCst);
         let pressed = match button {
             MouseButton::Left => state.left_physical_down.load(Ordering::SeqCst),
@@ -99,7 +96,6 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
             }
         }
 
-        let press_start = Instant::now();
         match button {
             MouseButton::Left => {
                 state
@@ -114,28 +110,6 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
                 win::right_press();
             }
         }
-        total_latency_ms += press_start.elapsed().as_secs_f64() * 1000.0;
-        click_count += 1;
-        if click_count >= 40 {
-            if debug {
-                println!(
-                    "[Vene] {:?} Avg Latency: {:.4} ms | Target CPS: {:.1}{}",
-                    button,
-                    total_latency_ms / click_count as f64,
-                    target_cps,
-                    if fatigue_ticks > 0 { " (Fatigued)" } else { "" }
-                );
-            }
-            total_latency_ms = 0.0;
-            click_count = 0;
-        }
-
-        let jitter_offset = if cfg.jitter_intensity > 0 {
-            apply_jitter(cfg.jitter_intensity, &mut rng)
-        } else {
-            (0, 0)
-        };
-
         let hold_fraction = 0.15 + rng.gen_range(0.0..=0.15);
         precise_sleep(interval.mul_f64(hold_fraction), &state);
 
@@ -143,7 +117,6 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
             MouseButton::Left => win::left_release(),
             MouseButton::Right => win::right_release(),
         }
-        undo_jitter(jitter_offset);
 
         let elapsed = loop_start.elapsed();
         if interval > elapsed {
@@ -152,28 +125,12 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
     }
 }
 
-fn apply_jitter(intensity: u32, rng: &mut rand::rngs::ThreadRng) -> (i32, i32) {
-    let range = (intensity / 20 + 1) as i32;
-    let dx = rng.gen_range(-range..=range);
-    let dy = rng.gen_range(-range..=range);
-    if dx != 0 || dy != 0 {
-        win::move_relative(dx, dy);
-    }
-    (dx, dy)
-}
-
-fn undo_jitter(offset: (i32, i32)) {
-    let (dx, dy) = offset;
-    if dx != 0 || dy != 0 {
-        win::move_relative(-dx, -dy);
-    }
-}
-
 fn precise_sleep(duration: Duration, state: &RuntimeState) {
     if duration.is_zero() {
         return;
     }
     let deadline = Instant::now() + duration;
+    let spin_guard = Duration::from_micros(600);
     loop {
         if state.shutdown.load(Ordering::SeqCst) {
             return;
@@ -185,16 +142,23 @@ fn precise_sleep(duration: Duration, state: &RuntimeState) {
         }
 
         let remaining = deadline - now;
-        if remaining > Duration::from_millis(2) {
-            thread::sleep(Duration::from_millis(1));
+        if remaining > Duration::from_millis(3) {
+            // Sleep most of the remaining interval, then finish with spin/yield.
+            thread::sleep(remaining - Duration::from_millis(1));
             continue;
         }
 
-        if remaining > Duration::from_micros(100) {
-            thread::sleep(Duration::from_micros(100));
+        if remaining > spin_guard {
+            thread::yield_now();
             continue;
         }
 
-        std::hint::spin_loop();
+        while Instant::now() < deadline {
+            if state.shutdown.load(Ordering::SeqCst) {
+                return;
+            }
+            std::hint::spin_loop();
+        }
+        return;
     }
 }

@@ -109,9 +109,6 @@ impl App for VeneApp {
             changed |= ui
                 .checkbox(&mut cfg.right_click_enabled, "Enable right clicker")
                 .changed();
-            changed |= ui
-                .add(egui::Slider::new(&mut cfg.jitter_intensity, 0..=100).text("Jitter Intensity"))
-                .changed();
 
             ui.add_space(10.0);
             ui.label(RichText::new("Left Click CPS").strong());

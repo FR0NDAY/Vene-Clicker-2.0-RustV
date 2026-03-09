@@ -113,7 +113,7 @@ fn on_right_press(state: &RuntimeState) {
         return;
     }
 
-    if state.is_active() && state.config_snapshot().right_click_enabled {
+    if state.is_active() && state.right_click_enabled() {
         state.right_physical_down.store(true, Ordering::SeqCst);
     }
 }

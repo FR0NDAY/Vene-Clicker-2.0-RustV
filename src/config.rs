@@ -7,8 +7,6 @@ use crate::keybind::{normalize_token, DEFAULT_KEYBIND};
 
 const MIN_CPS: u32 = 5;
 const MAX_CPS: u32 = 25;
-const MIN_JITTER: u32 = 0;
-const MAX_JITTER: u32 = 100;
 
 #[derive(Clone, Debug)]
 pub struct AppConfig {
@@ -19,7 +17,6 @@ pub struct AppConfig {
     pub right_click_enabled: bool,
     pub cps_drops_enabled: bool,
     pub only_in_minecraft: bool,
-    pub jitter_intensity: u32,
     pub keybinds: Vec<String>,
 }
 
@@ -33,7 +30,6 @@ impl Default for AppConfig {
             right_click_enabled: false,
             cps_drops_enabled: true,
             only_in_minecraft: false,
-            jitter_intensity: 0,
             keybinds: vec![DEFAULT_KEYBIND.to_owned()],
         }
     }
@@ -52,8 +48,6 @@ impl AppConfig {
         if self.min_right_cps > self.max_right_cps {
             std::mem::swap(&mut self.min_right_cps, &mut self.max_right_cps);
         }
-
-        self.jitter_intensity = self.jitter_intensity.clamp(MIN_JITTER, MAX_JITTER);
 
         if self.keybinds.is_empty() {
             self.keybinds.push(DEFAULT_KEYBIND.to_owned());
@@ -87,7 +81,6 @@ pub fn load_config(path: &Path) -> AppConfig {
         right_click_enabled: parse_bool(map.get("rightClickEnabled"), false),
         cps_drops_enabled: parse_bool(map.get("cpsDropsEnabled"), true),
         only_in_minecraft: parse_bool(map.get("onlyInMinecraft"), false),
-        jitter_intensity: parse_u32(map.get("jitterIntensity"), 0),
         keybinds: parse_keybinds(map.get("keybinds").map(String::as_str).unwrap_or("")),
     };
     cfg.sanitize();
@@ -109,7 +102,6 @@ pub fn save_config(path: &Path, cfg: &AppConfig, active: bool) -> io::Result<()>
     output.push_str(&format!("rightClickEnabled={}\n", cfg.right_click_enabled));
     output.push_str(&format!("cpsDropsEnabled={}\n", cfg.cps_drops_enabled));
     output.push_str(&format!("onlyInMinecraft={}\n", cfg.only_in_minecraft));
-    output.push_str(&format!("jitterIntensity={}\n", cfg.jitter_intensity));
     output.push_str(&format!("enabled={active}\n"));
 
     fs::write(path, output)

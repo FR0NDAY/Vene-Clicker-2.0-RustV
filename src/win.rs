@@ -1,18 +1,14 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-    mouse_event, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN,
+    mouse_event, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_RIGHTDOWN,
     MOUSEEVENTF_RIGHTUP,
 };
+use windows_sys::Win32::System::SystemInformation::GetTickCount64;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow, GetWindowTextLengthW, GetWindowTextW,
 };
 
 pub fn now_millis() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64
+    unsafe { GetTickCount64() }
 }
 
 pub fn enable_high_resolution_timer() -> bool {
@@ -70,12 +66,6 @@ pub fn right_press() {
 pub fn right_release() {
     unsafe {
         mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0);
-    }
-}
-
-pub fn move_relative(dx: i32, dy: i32) {
-    unsafe {
-        mouse_event(MOUSEEVENTF_MOVE, dx, dy, 0, 0);
     }
 }
 

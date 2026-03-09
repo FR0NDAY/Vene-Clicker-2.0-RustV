@@ -4,6 +4,17 @@ use parking_lot::Mutex;
 
 use crate::config::AppConfig;
 
+#[derive(Clone, Copy, Debug)]
+pub struct ClickerConfigSnapshot {
+    pub min_cps: u32,
+    pub max_cps: u32,
+    pub min_right_cps: u32,
+    pub max_right_cps: u32,
+    pub right_click_enabled: bool,
+    pub cps_drops_enabled: bool,
+    pub only_in_minecraft: bool,
+}
+
 pub struct RuntimeState {
     pub config: Mutex<AppConfig>,
     pub active: AtomicBool,
@@ -38,6 +49,23 @@ impl RuntimeState {
 
     pub fn config_snapshot(&self) -> AppConfig {
         self.config.lock().clone()
+    }
+
+    pub fn clicker_config_snapshot(&self) -> ClickerConfigSnapshot {
+        let cfg = self.config.lock();
+        ClickerConfigSnapshot {
+            min_cps: cfg.min_cps,
+            max_cps: cfg.max_cps,
+            min_right_cps: cfg.min_right_cps,
+            max_right_cps: cfg.max_right_cps,
+            right_click_enabled: cfg.right_click_enabled,
+            cps_drops_enabled: cfg.cps_drops_enabled,
+            only_in_minecraft: cfg.only_in_minecraft,
+        }
+    }
+
+    pub fn right_click_enabled(&self) -> bool {
+        self.config.lock().right_click_enabled
     }
 
     pub fn update_config<F>(&self, update: F)
