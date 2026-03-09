@@ -130,9 +130,11 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
             click_count = 0;
         }
 
-        if cfg.jitter_intensity > 0 {
-            apply_jitter(cfg.jitter_intensity, &mut rng);
-        }
+        let jitter_offset = if cfg.jitter_intensity > 0 {
+            apply_jitter(cfg.jitter_intensity, &mut rng)
+        } else {
+            (0, 0)
+        };
 
         let hold_fraction = 0.15 + rng.gen_range(0.0..=0.15);
         precise_sleep(interval.mul_f64(hold_fraction), &state);
@@ -141,6 +143,7 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
             MouseButton::Left => win::left_release(),
             MouseButton::Right => win::right_release(),
         }
+        undo_jitter(jitter_offset);
 
         let elapsed = loop_start.elapsed();
         if interval > elapsed {
@@ -149,12 +152,20 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
     }
 }
 
-fn apply_jitter(intensity: u32, rng: &mut rand::rngs::ThreadRng) {
+fn apply_jitter(intensity: u32, rng: &mut rand::rngs::ThreadRng) -> (i32, i32) {
     let range = (intensity / 20 + 1) as i32;
     let dx = rng.gen_range(-range..=range);
     let dy = rng.gen_range(-range..=range);
     if dx != 0 || dy != 0 {
         win::move_relative(dx, dy);
+    }
+    (dx, dy)
+}
+
+fn undo_jitter(offset: (i32, i32)) {
+    let (dx, dy) = offset;
+    if dx != 0 || dy != 0 {
+        win::move_relative(-dx, -dy);
     }
 }
 
