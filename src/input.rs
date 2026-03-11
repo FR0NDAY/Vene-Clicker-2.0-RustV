@@ -6,6 +6,7 @@ use std::thread::{self, JoinHandle};
 use parking_lot::Mutex;
 use rdev::{listen, Event, EventType};
 
+use crate::hotkey;
 use crate::runtime::RuntimeState;
 const TOGGLE_DEBOUNCE_MS: u64 = 80;
 
@@ -77,6 +78,7 @@ fn on_key_release(state: &RuntimeState, pressed_keys: &Mutex<HashSet<String>>, k
             state.update_config(|cfg| {
                 cfg.keybinds = unique;
             });
+            hotkey::request_hotkey_reload();
         }
         state.capture_mode.store(false, Ordering::SeqCst);
         return;

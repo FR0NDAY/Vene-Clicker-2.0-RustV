@@ -3,9 +3,9 @@ mod clicker;
 #[cfg(target_os = "windows")]
 mod config;
 #[cfg(target_os = "windows")]
-mod hotkey;
-#[cfg(target_os = "windows")]
 mod input;
+#[cfg(target_os = "windows")]
+mod hotkey;
 #[cfg(target_os = "windows")]
 mod keybind;
 #[cfg(target_os = "windows")]
@@ -25,8 +25,8 @@ fn main() {
 #[cfg(target_os = "windows")]
 fn main() -> eframe::Result<()> {
     use std::path::PathBuf;
-    use std::sync::atomic::Ordering;
     use std::sync::Arc;
+    use std::sync::atomic::Ordering;
 
     let config_path = PathBuf::from("config.txt");
     let config = config::load_config(&config_path);

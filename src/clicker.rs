@@ -48,7 +48,8 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
 
         if !running {
             fatigue_ticks = 0;
-            precise_sleep(Duration::from_millis(10), &state);
+            let seq = state.wake_seq();
+            state.wait_for_wakeup(seq, Duration::from_millis(100));
             continue;
         }
 
@@ -84,8 +85,15 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
             }
         }
 
-        let spread = (max_cps - min_cps) as f64;
-        let target_cps = (min_cps as f64) + rng.gen_range(0.0..=spread);
+        let (target_cps, hold_fraction) = if !cfg.cps_drops_enabled && min_cps == max_cps {
+            (min_cps as f64, 0.225)
+        } else {
+            let spread = (max_cps - min_cps) as f64;
+            (
+                (min_cps as f64) + rng.gen_range(0.0..=spread),
+                0.15 + rng.gen_range(0.0..=0.15),
+            )
+        };
         let interval = Duration::from_secs_f64(1.0 / target_cps.max(1.0));
         let loop_start = Instant::now();
 
@@ -111,7 +119,6 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
                 win::right_press();
             }
         }
-        let hold_fraction = 0.15 + rng.gen_range(0.0..=0.15);
         precise_sleep(interval.mul_f64(hold_fraction), &state);
 
         match button {
@@ -131,7 +138,7 @@ fn precise_sleep(duration: Duration, state: &RuntimeState) {
         return;
     }
     let deadline = Instant::now() + duration;
-    let spin_guard = Duration::from_micros(600);
+    let spin_guard = Duration::from_micros(200);
     loop {
         if state.shutdown.load(Ordering::SeqCst) {
             return;

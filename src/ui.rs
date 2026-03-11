@@ -8,6 +8,7 @@ use eframe::{egui, App};
 use egui::{Color32, RichText};
 
 use crate::config::{save_config, AppConfig};
+use crate::hotkey;
 use crate::keybind::keybind_display;
 use crate::runtime::RuntimeState;
 use crate::win;
@@ -59,6 +60,7 @@ impl App for VeneApp {
                 self.state.update_config(|shared_cfg| {
                     shared_cfg.keybinds = new_keybind;
                 });
+                hotkey::request_hotkey_reload();
                 self.state.capture_mode.store(false, Ordering::SeqCst);
                 capture_mode = false;
                 cfg = self.state.config_snapshot();
@@ -177,6 +179,7 @@ impl Drop for VeneApp {
             }
         }
         self.state.shutdown.store(true, Ordering::SeqCst);
+        self.state.notify_wakeup();
         win::disable_high_resolution_timer(self.timer_resolution_enabled);
     }
 }

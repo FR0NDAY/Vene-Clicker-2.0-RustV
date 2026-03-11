@@ -1,6 +1,6 @@
 use std::io;
-use std::sync::atomic::Ordering;
 use std::sync::mpsc;
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, OnceLock};
 use std::thread;
 
@@ -8,8 +8,8 @@ use windows_sys::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
 use windows_sys::Win32::System::Threading::GetCurrentThreadId;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, GetMessageW, PostThreadMessageW, SetWindowsHookExW, UnhookWindowsHookEx,
-    LLMHF_INJECTED, MSG, MSLLHOOKSTRUCT, WH_MOUSE_LL, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_QUIT,
-    WM_RBUTTONDOWN, WM_RBUTTONUP,
+    LLMHF_INJECTED, MSLLHOOKSTRUCT, MSG, WH_MOUSE_LL, WM_LBUTTONDOWN, WM_LBUTTONUP,
+    WM_QUIT, WM_RBUTTONDOWN, WM_RBUTTONUP,
 };
 
 use crate::runtime::RuntimeState;
@@ -83,16 +83,28 @@ unsafe extern "system" fn mouse_hook_proc(code: i32, wparam: WPARAM, lparam: LPA
             if let Some(state) = MOUSE_STATE.get() {
                 match wparam as u32 {
                     WM_LBUTTONDOWN => {
-                        state.left_physical_down.store(true, Ordering::SeqCst);
+                        let prev = state.left_physical_down.swap(true, Ordering::SeqCst);
+                        if !prev {
+                            state.notify_wakeup();
+                        }
                     }
                     WM_LBUTTONUP => {
-                        state.left_physical_down.store(false, Ordering::SeqCst);
+                        let prev = state.left_physical_down.swap(false, Ordering::SeqCst);
+                        if prev {
+                            state.notify_wakeup();
+                        }
                     }
                     WM_RBUTTONDOWN => {
-                        state.right_physical_down.store(true, Ordering::SeqCst);
+                        let prev = state.right_physical_down.swap(true, Ordering::SeqCst);
+                        if !prev {
+                            state.notify_wakeup();
+                        }
                     }
                     WM_RBUTTONUP => {
-                        state.right_physical_down.store(false, Ordering::SeqCst);
+                        let prev = state.right_physical_down.swap(false, Ordering::SeqCst);
+                        if prev {
+                            state.notify_wakeup();
+                        }
                     }
                     _ => {}
                 }

@@ -1,4 +1,6 @@
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Condvar, Mutex as StdMutex};
+use std::time::Duration;
 
 use parking_lot::Mutex;
 
@@ -22,6 +24,9 @@ pub struct RuntimeState {
     pub shutdown: AtomicBool,
     pub left_physical_down: AtomicBool,
     pub right_physical_down: AtomicBool,
+    wake_seq: AtomicU64,
+    wake_lock: StdMutex<()>,
+    wake_cv: Condvar,
     pub capture_mode: AtomicBool,
     pub captured_keys: Mutex<Vec<String>>,
     pub last_toggle_ms: AtomicU64,
@@ -38,6 +43,9 @@ impl RuntimeState {
             shutdown: AtomicBool::new(false),
             left_physical_down: AtomicBool::new(false),
             right_physical_down: AtomicBool::new(false),
+            wake_seq: AtomicU64::new(0),
+            wake_lock: StdMutex::new(()),
+            wake_cv: Condvar::new(),
             capture_mode: AtomicBool::new(false),
             captured_keys: Mutex::new(Vec::new()),
             last_toggle_ms: AtomicU64::new(0),
@@ -70,6 +78,8 @@ impl RuntimeState {
         let mut cfg = self.config.lock();
         update(&mut cfg);
         cfg.sanitize();
+        drop(cfg);
+        self.notify_wakeup();
     }
 
     pub fn begin_keybind_capture(&self) {
@@ -85,6 +95,7 @@ impl RuntimeState {
         let next = !self.active.load(Ordering::SeqCst);
         self.active.store(next, Ordering::SeqCst);
         println!("[Vene] Clicker Active: {next}");
+        self.notify_wakeup();
         next
     }
 
@@ -105,6 +116,24 @@ impl RuntimeState {
                 Err(updated) => last = updated,
             }
         }
+    }
+
+    pub fn notify_wakeup(&self) {
+        self.wake_seq.fetch_add(1, Ordering::SeqCst);
+        self.wake_cv.notify_all();
+    }
+
+    pub fn wake_seq(&self) -> u64 {
+        self.wake_seq.load(Ordering::SeqCst)
+    }
+
+    pub fn wait_for_wakeup(&self, seq: u64, timeout: Duration) {
+        let guard = self.wake_lock.lock().unwrap();
+        let _ = self
+            .wake_cv
+            .wait_timeout_while(guard, timeout, |_| {
+                self.wake_seq.load(Ordering::SeqCst) == seq
+            });
     }
 
     // Intentionally no benchmark-only helpers.

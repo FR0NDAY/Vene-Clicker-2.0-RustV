@@ -1,4 +1,5 @@
 use std::io;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::thread;
@@ -8,13 +9,16 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     RegisterHotKey, UnregisterHotKey, MOD_ALT, MOD_CONTROL, MOD_NOREPEAT, MOD_SHIFT,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    GetMessageW, PostThreadMessageW, MSG, WM_HOTKEY, WM_QUIT,
+    GetMessageW, PostThreadMessageW, MSG, WM_APP, WM_HOTKEY, WM_QUIT,
 };
 
 use crate::runtime::RuntimeState;
 
 const HOTKEY_ID: i32 = 1;
 const TOGGLE_DEBOUNCE_MS: u64 = 80;
+const WM_HOTKEY_RELOAD: u32 = WM_APP + 1;
+
+static HOTKEY_THREAD_ID: AtomicU32 = AtomicU32::new(0);
 
 pub struct HotkeyHandle {
     thread_id: u32,
@@ -34,6 +38,15 @@ impl Drop for HotkeyHandle {
     }
 }
 
+pub fn request_hotkey_reload() {
+    let thread_id = HOTKEY_THREAD_ID.load(Ordering::SeqCst);
+    if thread_id != 0 {
+        unsafe {
+            let _ = PostThreadMessageW(thread_id, WM_HOTKEY_RELOAD, 0, 0);
+        }
+    }
+}
+
 pub fn spawn_hotkey_thread(state: Arc<RuntimeState>) -> Option<HotkeyHandle> {
     let (mods, vk) = parse_hotkey(&state.config_snapshot().keybinds)?;
     let (ready_tx, ready_rx) = mpsc::sync_channel(1);
@@ -46,6 +59,8 @@ pub fn spawn_hotkey_thread(state: Arc<RuntimeState>) -> Option<HotkeyHandle> {
             return;
         }
 
+        state.hotkey_registered.store(true, Ordering::SeqCst);
+        HOTKEY_THREAD_ID.store(thread_id, Ordering::SeqCst);
         let _ = ready_tx.send(Ok(thread_id));
 
         let mut msg: MSG = unsafe { std::mem::zeroed() };
@@ -56,6 +71,8 @@ pub fn spawn_hotkey_thread(state: Arc<RuntimeState>) -> Option<HotkeyHandle> {
             }
             if msg.message == WM_HOTKEY {
                 state.toggle_active_debounced(TOGGLE_DEBOUNCE_MS);
+            } else if msg.message == WM_HOTKEY_RELOAD {
+                reload_hotkey(&state);
             }
         }
 
@@ -75,6 +92,26 @@ pub fn spawn_hotkey_thread(state: Arc<RuntimeState>) -> Option<HotkeyHandle> {
         }
         Err(_) => None,
     }
+}
+
+fn reload_hotkey(state: &RuntimeState) {
+    unsafe {
+        let _ = UnregisterHotKey(std::ptr::null_mut(), HOTKEY_ID);
+    }
+
+    if let Some((mods, vk)) = parse_hotkey(&state.config_snapshot().keybinds) {
+        let ok = unsafe { RegisterHotKey(std::ptr::null_mut(), HOTKEY_ID, mods, vk) };
+        if ok != 0 {
+            state.hotkey_registered.store(true, Ordering::SeqCst);
+            return;
+        }
+        eprintln!(
+            "[Vene] RegisterHotKey failed on reload: {}",
+            io::Error::last_os_error()
+        );
+    }
+
+    state.hotkey_registered.store(false, Ordering::SeqCst);
 }
 
 fn parse_hotkey(tokens: &[String]) -> Option<(u32, u32)> {
