@@ -19,9 +19,12 @@ pub fn spawn_click_worker(state: Arc<RuntimeState>, button: MouseButton) -> Join
 }
 
 fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
+    win::raise_clicker_thread_priority();
     let mut rng = rand::thread_rng();
     let mut fatigue_ticks = 0_i32;
     let mut fatigue_intensity = 1.0_f64;
+    let mut next_deadline: Option<Instant> = None;
+    let mut last_interval: Option<Duration> = None;
 
     loop {
         if state.shutdown.load(Ordering::SeqCst) {
@@ -48,6 +51,8 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
 
         if !running {
             fatigue_ticks = 0;
+            next_deadline = None;
+            last_interval = None;
             let seq = state.wake_seq();
             state.wait_for_wakeup(seq, Duration::from_millis(100));
             continue;
@@ -85,7 +90,8 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
             }
         }
 
-        let (target_cps, hold_fraction) = if !cfg.cps_drops_enabled && min_cps == max_cps {
+        let strict_cps = !cfg.cps_drops_enabled && min_cps == max_cps;
+        let (target_cps, hold_fraction) = if strict_cps {
             (min_cps as f64, 0.225)
         } else {
             let spread = (max_cps - min_cps) as f64;
@@ -95,7 +101,6 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
             )
         };
         let interval = Duration::from_secs_f64(1.0 / target_cps.max(1.0));
-        let loop_start = Instant::now();
 
         if cfg.only_in_minecraft {
             let title = win::active_window_title().to_lowercase();
@@ -106,11 +111,49 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
                 || title.contains("feather")
                 || title.contains("cheatbreaker");
             if !is_game_window {
+                next_deadline = None;
+                last_interval = None;
                 precise_sleep(Duration::from_millis(50), &state);
                 continue;
             }
         }
 
+        if strict_cps {
+            if last_interval.map_or(true, |prev| prev != interval) {
+                last_interval = Some(interval);
+                next_deadline = None;
+            }
+
+            let now = Instant::now();
+            let mut deadline = next_deadline.unwrap_or(now);
+            if now > deadline + interval {
+                deadline = now;
+            }
+
+            precise_sleep_until(deadline, &state);
+            match button {
+                MouseButton::Left => {
+                    win::left_press();
+                }
+                MouseButton::Right => {
+                    win::right_press();
+                }
+            }
+            precise_sleep(interval.mul_f64(hold_fraction), &state);
+
+            match button {
+                MouseButton::Left => win::left_release(),
+                MouseButton::Right => win::right_release(),
+            }
+
+            next_deadline = Some(deadline + interval);
+            continue;
+        } else {
+            next_deadline = None;
+            last_interval = None;
+        }
+
+        let loop_start = Instant::now();
         match button {
             MouseButton::Left => {
                 win::left_press();
@@ -138,7 +181,11 @@ fn precise_sleep(duration: Duration, state: &RuntimeState) {
         return;
     }
     let deadline = Instant::now() + duration;
-    let spin_guard = Duration::from_micros(200);
+    precise_sleep_until(deadline, state);
+}
+
+fn precise_sleep_until(deadline: Instant, state: &RuntimeState) {
+    let spin_guard = Duration::from_micros(400);
     loop {
         if state.shutdown.load(Ordering::SeqCst) {
             return;
@@ -150,9 +197,9 @@ fn precise_sleep(duration: Duration, state: &RuntimeState) {
         }
 
         let remaining = deadline - now;
-        if remaining > Duration::from_millis(3) {
+        if remaining > Duration::from_millis(4) {
             // Sleep most of the remaining interval, then finish with spin/yield.
-            thread::sleep(remaining - Duration::from_millis(1));
+            thread::sleep(remaining - Duration::from_millis(2));
             continue;
         }
 
