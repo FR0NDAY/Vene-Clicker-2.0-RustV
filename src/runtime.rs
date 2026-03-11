@@ -129,11 +129,9 @@ impl RuntimeState {
 
     pub fn wait_for_wakeup(&self, seq: u64, timeout: Duration) {
         let guard = self.wake_lock.lock().unwrap();
-        let _ = self
-            .wake_cv
-            .wait_timeout_while(guard, timeout, |_| {
-                self.wake_seq.load(Ordering::SeqCst) == seq
-            });
+        let _ = self.wake_cv.wait_timeout_while(guard, timeout, |_| {
+            self.wake_seq.load(Ordering::SeqCst) == seq
+        });
     }
 
     // Intentionally no benchmark-only helpers.
