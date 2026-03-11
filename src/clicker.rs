@@ -138,7 +138,7 @@ fn precise_sleep(duration: Duration, state: &RuntimeState) {
         return;
     }
     let deadline = Instant::now() + duration;
-    let spin_guard = Duration::from_micros(200);
+    let spin_guard = Duration::from_micros(600); // 200 is better for cpu usage but im not sure its worth it, so back to 600 !
     loop {
         if state.shutdown.load(Ordering::SeqCst) {
             return;
