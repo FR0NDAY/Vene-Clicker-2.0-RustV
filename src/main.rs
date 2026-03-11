@@ -5,7 +5,11 @@ mod config;
 #[cfg(target_os = "windows")]
 mod input;
 #[cfg(target_os = "windows")]
+mod hotkey;
+#[cfg(target_os = "windows")]
 mod keybind;
+#[cfg(target_os = "windows")]
+mod mouse_hook;
 #[cfg(target_os = "windows")]
 mod runtime;
 #[cfg(target_os = "windows")]
@@ -22,6 +26,7 @@ fn main() {
 fn main() -> eframe::Result<()> {
     use std::path::PathBuf;
     use std::sync::Arc;
+    use std::sync::atomic::Ordering;
 
     let config_path = PathBuf::from("config.txt");
     let config = config::load_config(&config_path);
@@ -30,6 +35,14 @@ fn main() -> eframe::Result<()> {
     let _left_worker = clicker::spawn_click_worker(state.clone(), clicker::MouseButton::Left);
     let _right_worker = clicker::spawn_click_worker(state.clone(), clicker::MouseButton::Right);
     let _input_listener = input::spawn_input_listener(state.clone());
+    let _mouse_hook = mouse_hook::spawn_mouse_hook_thread(state.clone());
+    if _mouse_hook.is_some() {
+        state.mouse_hook_registered.store(true, Ordering::SeqCst);
+    }
+    let _hotkey = hotkey::spawn_hotkey_thread(state.clone());
+    if _hotkey.is_some() {
+        state.hotkey_registered.store(true, Ordering::SeqCst);
+    }
 
     let timer_resolution_enabled = win::enable_high_resolution_timer();
 

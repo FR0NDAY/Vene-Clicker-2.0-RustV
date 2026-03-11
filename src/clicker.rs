@@ -30,9 +30,16 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
 
         let cfg = state.clicker_config_snapshot();
         let active = state.active.load(Ordering::SeqCst);
-        let pressed = match button {
-            MouseButton::Left => state.left_physical_down.load(Ordering::SeqCst),
-            MouseButton::Right => state.right_physical_down.load(Ordering::SeqCst),
+        let pressed = if state.mouse_hook_registered.load(Ordering::SeqCst) {
+            match button {
+                MouseButton::Left => state.left_physical_down.load(Ordering::SeqCst),
+                MouseButton::Right => state.right_physical_down.load(Ordering::SeqCst),
+            }
+        } else {
+            match button {
+                MouseButton::Left => win::is_left_button_down(),
+                MouseButton::Right => win::is_right_button_down(),
+            }
         };
         let running = match button {
             MouseButton::Left => active && pressed,
@@ -98,15 +105,9 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
 
         match button {
             MouseButton::Left => {
-                state
-                    .last_left_click_ms
-                    .store(win::now_millis(), Ordering::SeqCst);
                 win::left_press();
             }
             MouseButton::Right => {
-                state
-                    .last_right_click_ms
-                    .store(win::now_millis(), Ordering::SeqCst);
                 win::right_press();
             }
         }

@@ -1,7 +1,7 @@
 use windows_sys::Win32::System::SystemInformation::GetTickCount64;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-    mouse_event, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_RIGHTDOWN,
-    MOUSEEVENTF_RIGHTUP,
+    mouse_event, GetAsyncKeyState, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP,
+    MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP, VK_LBUTTON, VK_RBUTTON,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow, GetWindowTextLengthW, GetWindowTextW,
@@ -67,6 +67,14 @@ pub fn right_release() {
     unsafe {
         mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0);
     }
+}
+
+pub fn is_left_button_down() -> bool {
+    unsafe { (GetAsyncKeyState(VK_LBUTTON as i32) & (0x8000u16 as i16)) != 0 }
+}
+
+pub fn is_right_button_down() -> bool {
+    unsafe { (GetAsyncKeyState(VK_RBUTTON as i32) & (0x8000u16 as i16)) != 0 }
 }
 
 #[link(name = "winmm")]
