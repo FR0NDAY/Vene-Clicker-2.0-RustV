@@ -57,6 +57,7 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
             state.wait_for_wakeup(seq, Duration::from_millis(100));
             continue;
         }
+        let wake_seq = state.wake_seq();
 
         let (mut min_cps, mut max_cps) = match button {
             MouseButton::Left => (cfg.min_cps, cfg.max_cps),
@@ -113,7 +114,7 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
             if !is_game_window {
                 next_deadline = None;
                 last_interval = None;
-                precise_sleep(Duration::from_millis(50), &state);
+                let _ = precise_sleep(Duration::from_millis(50), &state, Some(wake_seq));
                 continue;
             }
         }
@@ -130,7 +131,9 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
                 deadline = now;
             }
 
-            precise_sleep_until(deadline, &state);
+            if !precise_sleep_until(deadline, &state, Some(wake_seq)) {
+                continue;
+            }
             match button {
                 MouseButton::Left => {
                     win::left_press();
@@ -139,13 +142,17 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
                     win::right_press();
                 }
             }
-            precise_sleep(interval.mul_f64(hold_fraction), &state);
+            let held = precise_sleep(interval.mul_f64(hold_fraction), &state, Some(wake_seq));
 
             match button {
                 MouseButton::Left => win::left_release(),
                 MouseButton::Right => win::right_release(),
             }
 
+            if !held {
+                next_deadline = None;
+                continue;
+            }
             next_deadline = Some(deadline + interval);
             continue;
         } else {
@@ -162,38 +169,47 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
                 win::right_press();
             }
         }
-        precise_sleep(interval.mul_f64(hold_fraction), &state);
+        let held = precise_sleep(interval.mul_f64(hold_fraction), &state, Some(wake_seq));
 
         match button {
             MouseButton::Left => win::left_release(),
             MouseButton::Right => win::right_release(),
         }
 
+        if !held {
+            continue;
+        }
         let elapsed = loop_start.elapsed();
         if interval > elapsed {
-            precise_sleep(interval - elapsed, &state);
+            let _ = precise_sleep(interval - elapsed, &state, Some(wake_seq));
         }
     }
 }
 
-fn precise_sleep(duration: Duration, state: &RuntimeState) {
+fn precise_sleep(duration: Duration, state: &RuntimeState, wake_seq: Option<u64>) -> bool {
     if duration.is_zero() {
-        return;
+        return true;
     }
     let deadline = Instant::now() + duration;
-    precise_sleep_until(deadline, state);
+    precise_sleep_until(deadline, state, wake_seq)
 }
 
-fn precise_sleep_until(deadline: Instant, state: &RuntimeState) {
+fn precise_sleep_until(deadline: Instant, state: &RuntimeState, wake_seq: Option<u64>) -> bool {
     let spin_guard = Duration::from_micros(400);
     loop {
         if state.shutdown.load(Ordering::SeqCst) {
-            return;
+            return false;
+        }
+
+        if let Some(seq) = wake_seq {
+            if state.wake_seq() != seq {
+                return false;
+            }
         }
 
         let now = Instant::now();
         if now >= deadline {
-            return;
+            return true;
         }
 
         let remaining = deadline - now;
@@ -210,10 +226,15 @@ fn precise_sleep_until(deadline: Instant, state: &RuntimeState) {
 
         while Instant::now() < deadline {
             if state.shutdown.load(Ordering::SeqCst) {
-                return;
+                return false;
+            }
+            if let Some(seq) = wake_seq {
+                if state.wake_seq() != seq {
+                    return false;
+                }
             }
             std::hint::spin_loop();
         }
-        return;
+        return true;
     }
 }
