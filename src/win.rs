@@ -1,4 +1,5 @@
 use windows_sys::Win32::System::SystemInformation::GetTickCount64;
+use windows_sys::Win32::System::Threading::{GetCurrentThread, SetThreadPriority, THREAD_PRIORITY_HIGHEST};
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     mouse_event, GetAsyncKeyState, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_RIGHTDOWN,
     MOUSEEVENTF_RIGHTUP, VK_LBUTTON, VK_RBUTTON,
@@ -9,6 +10,16 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 
 pub fn now_millis() -> u64 {
     unsafe { GetTickCount64() }
+}
+
+pub fn raise_clicker_thread_priority() {
+    unsafe {
+        let handle = GetCurrentThread();
+        let ok = SetThreadPriority(handle, THREAD_PRIORITY_HIGHEST);
+        if ok == 0 {
+            eprintln!("[Vene] Failed to raise clicker thread priority.");
+        }
+    }
 }
 
 pub fn enable_high_resolution_timer() -> bool {
