@@ -1,4 +1,13 @@
 #[cfg(target_os = "windows")]
+#[used]
+#[no_mangle]
+pub static NvOptimusEnablement: u32 = 0x00000001;
+#[cfg(target_os = "windows")]
+#[used]
+#[no_mangle]
+pub static AmdPowerXpressRequestHighPerformance: i32 = 1;
+
+#[cfg(target_os = "windows")]
 mod clicker;
 #[cfg(target_os = "windows")]
 mod config;
