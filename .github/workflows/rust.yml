@@ -29,18 +29,12 @@ jobs:
       - name: Cargo check
         run: cargo check --all-targets
 
-      - name: Release build
-        run: cargo build --release
-
-      - name: Create ZIP artifact
+      - name: Release build (exe-only)
         shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item target/release/vene_clicker.exe dist/vene_clicker.exe -Force
-          Compress-Archive -Path dist/vene_clicker.exe -DestinationPath vene_clicker-windows.zip -Force
+        run: ./scripts/build_release.ps1
 
-      - name: Upload ZIP artifact
+      - name: Upload EXE artifact
         uses: actions/upload-artifact@v4
         with:
           name: vene_clicker-windows
-          path: vene_clicker-windows.zip
+          path: target/release/vene_clicker.exe
