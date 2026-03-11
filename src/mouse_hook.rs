@@ -1,6 +1,6 @@
 use std::io;
-use std::sync::mpsc;
 use std::sync::atomic::Ordering;
+use std::sync::mpsc;
 use std::sync::{Arc, OnceLock};
 use std::thread;
 
@@ -8,8 +8,8 @@ use windows_sys::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
 use windows_sys::Win32::System::Threading::GetCurrentThreadId;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, GetMessageW, PostThreadMessageW, SetWindowsHookExW, UnhookWindowsHookEx,
-    LLMHF_INJECTED, MSLLHOOKSTRUCT, MSG, WH_MOUSE_LL, WM_LBUTTONDOWN, WM_LBUTTONUP,
-    WM_QUIT, WM_RBUTTONDOWN, WM_RBUTTONUP,
+    LLMHF_INJECTED, MSG, MSLLHOOKSTRUCT, WH_MOUSE_LL, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_QUIT,
+    WM_RBUTTONDOWN, WM_RBUTTONUP,
 };
 
 use crate::runtime::RuntimeState;
