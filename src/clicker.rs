@@ -23,8 +23,6 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
     let mut rng = rand::thread_rng();
     let mut fatigue_ticks = 0_i32;
     let mut fatigue_intensity = 1.0_f64;
-    let mut next_deadline: Option<Instant> = None;
-    let mut last_interval: Option<Duration> = None;
 
     loop {
         if state.shutdown.load(Ordering::SeqCst) {
@@ -51,8 +49,6 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
 
         if !running {
             fatigue_ticks = 0;
-            next_deadline = None;
-            last_interval = None;
             let seq = state.wake_seq();
             state.wait_for_wakeup(seq, Duration::from_millis(100));
             continue;
@@ -91,17 +87,17 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
             }
         }
 
-        let strict_cps = !cfg.cps_drops_enabled && min_cps == max_cps;
-        let (target_cps, hold_fraction) = if strict_cps {
-            (min_cps as f64, 0.225)
+        let spread = (max_cps - min_cps) as f64;
+        let target_cps = if spread > 0.001 {
+            (min_cps as f64) + rng.gen_range(0.0..=spread)
         } else {
-            let spread = (max_cps - min_cps) as f64;
-            (
-                (min_cps as f64) + rng.gen_range(0.0..=spread),
-                0.15 + rng.gen_range(0.0..=0.15),
-            )
+            min_cps as f64
         };
+        
         let interval = Duration::from_secs_f64(1.0 / target_cps.max(1.0));
+        let random_hold = Duration::from_millis(rng.gen_range(6..=11)); // major 
+        let max_hold = interval.mul_f64(0.5);
+        let hold_duration = random_hold.min(max_hold);
 
         if cfg.only_in_minecraft {
             let title = win::active_window_title().to_lowercase();
@@ -112,52 +108,9 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
                 || title.contains("feather")
                 || title.contains("cheatbreaker");
             if !is_game_window {
-                next_deadline = None;
-                last_interval = None;
                 let _ = precise_sleep(Duration::from_millis(50), &state, Some(wake_seq));
                 continue;
             }
-        }
-
-        if strict_cps {
-            if last_interval.map_or(true, |prev| prev != interval) {
-                last_interval = Some(interval);
-                next_deadline = None;
-            }
-
-            let now = Instant::now();
-            let mut deadline = next_deadline.unwrap_or(now);
-            if now > deadline + interval {
-                deadline = now;
-            }
-
-            if !precise_sleep_until(deadline, &state, Some(wake_seq)) {
-                continue;
-            }
-            match button {
-                MouseButton::Left => {
-                    win::left_press();
-                }
-                MouseButton::Right => {
-                    win::right_press();
-                }
-            }
-            let held = precise_sleep(interval.mul_f64(hold_fraction), &state, Some(wake_seq));
-
-            match button {
-                MouseButton::Left => win::left_release(),
-                MouseButton::Right => win::right_release(),
-            }
-
-            if !held {
-                next_deadline = None;
-                continue;
-            }
-            next_deadline = Some(deadline + interval);
-            continue;
-        } else {
-            next_deadline = None;
-            last_interval = None;
         }
 
         let loop_start = Instant::now();
@@ -169,7 +122,7 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
                 win::right_press();
             }
         }
-        let held = precise_sleep(interval.mul_f64(hold_fraction), &state, Some(wake_seq));
+        let held = precise_sleep(hold_duration, &state, Some(wake_seq));
 
         match button {
             MouseButton::Left => win::left_release(),
