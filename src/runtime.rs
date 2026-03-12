@@ -24,6 +24,7 @@ pub struct RuntimeState {
     pub shutdown: AtomicBool,
     pub left_physical_down: AtomicBool,
     pub right_physical_down: AtomicBool,
+    pub minecraft_foreground: AtomicBool,
     wake_seq: AtomicU64,
     wake_lock: StdMutex<()>,
     wake_cv: Condvar,
@@ -32,6 +33,7 @@ pub struct RuntimeState {
     pub last_toggle_ms: AtomicU64,
     pub hotkey_registered: AtomicBool,
     pub mouse_hook_registered: AtomicBool,
+    pub foreground_hook_registered: AtomicBool,
 }
 
 impl RuntimeState {
@@ -43,6 +45,7 @@ impl RuntimeState {
             shutdown: AtomicBool::new(false),
             left_physical_down: AtomicBool::new(false),
             right_physical_down: AtomicBool::new(false),
+            minecraft_foreground: AtomicBool::new(false),
             wake_seq: AtomicU64::new(0),
             wake_lock: StdMutex::new(()),
             wake_cv: Condvar::new(),
@@ -51,6 +54,7 @@ impl RuntimeState {
             last_toggle_ms: AtomicU64::new(0),
             hotkey_registered: AtomicBool::new(false),
             mouse_hook_registered: AtomicBool::new(false),
+            foreground_hook_registered: AtomicBool::new(false),
         }
     }
 
@@ -89,6 +93,19 @@ impl RuntimeState {
 
     pub fn is_active(&self) -> bool {
         self.active.load(Ordering::SeqCst)
+    }
+
+    pub fn is_minecraft_foreground(&self) -> bool {
+        self.minecraft_foreground.load(Ordering::SeqCst)
+    }
+
+    pub fn set_minecraft_foreground(&self, is_minecraft: bool) {
+        let prev = self
+            .minecraft_foreground
+            .swap(is_minecraft, Ordering::SeqCst);
+        if prev != is_minecraft {
+            self.notify_wakeup();
+        }
     }
 
     pub fn toggle_active(&self) -> bool {
