@@ -1,14 +1,16 @@
 use windows_sys::Win32::System::SystemInformation::GetTickCount64;
 use windows_sys::Win32::System::Threading::{
-    GetCurrentThread, SetThreadPriority, THREAD_PRIORITY_HIGHEST,
+    GetCurrentThread, OpenProcess, QueryFullProcessImageNameW, SetThreadPriority,
+    PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION, THREAD_PRIORITY_HIGHEST,
 };
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     mouse_event, GetAsyncKeyState, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_RIGHTDOWN,
     MOUSEEVENTF_RIGHTUP, VK_LBUTTON, VK_RBUTTON,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    GetForegroundWindow, GetWindowTextLengthW, GetWindowTextW,
+    GetForegroundWindow, GetWindowThreadProcessId,
 };
+use windows_sys::Win32::Foundation::CloseHandle;
 
 pub fn now_millis() -> u64 {
     unsafe { GetTickCount64() }
@@ -36,25 +38,57 @@ pub fn disable_high_resolution_timer(enabled: bool) {
     }
 }
 
-pub fn active_window_title() -> String {
+pub fn is_minecraft_foreground() -> bool {
+    match foreground_process_name() {
+        Some(name) => is_minecraft_process_name(&name),
+        None => false,
+    }
+}
+
+pub fn is_minecraft_process_name(name: &str) -> bool {
+    let name = name.trim().to_ascii_lowercase();
+    name == "javaw.exe" || name == "minecraft.windows.exe"
+}
+
+pub fn foreground_process_name() -> Option<String> {
     unsafe {
         let hwnd = GetForegroundWindow();
         if hwnd.is_null() {
-            return String::new();
+            return None;
         }
 
-        let len = GetWindowTextLengthW(hwnd);
-        if len <= 0 {
-            return String::new();
+        let mut pid: u32 = 0;
+        let _ = GetWindowThreadProcessId(hwnd, &mut pid);
+        if pid == 0 {
+            return None;
         }
 
-        let mut buffer = vec![0u16; (len + 1) as usize];
-        let copied = GetWindowTextW(hwnd, buffer.as_mut_ptr(), len + 1);
-        if copied <= 0 {
-            return String::new();
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if handle.is_null() {
+            return None;
         }
 
-        String::from_utf16_lossy(&buffer[..copied as usize])
+        let mut buffer = vec![0u16; 1024];
+        let mut size = buffer.len() as u32;
+        let ok = QueryFullProcessImageNameW(
+            handle,
+            PROCESS_NAME_WIN32,
+            buffer.as_mut_ptr(),
+            &mut size,
+        );
+        let _ = CloseHandle(handle);
+
+        if ok == 0 || size == 0 {
+            return None;
+        }
+
+        let full = String::from_utf16_lossy(&buffer[..size as usize]);
+        let name = full
+            .rsplit(['\\', '/'])
+            .next()
+            .unwrap_or(full.as_str())
+            .to_string();
+        Some(name)
     }
 }
 
