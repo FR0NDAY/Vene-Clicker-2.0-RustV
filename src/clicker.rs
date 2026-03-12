@@ -55,6 +55,23 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
         }
         let wake_seq = state.wake_seq();
 
+        if cfg.only_in_minecraft {
+            let use_hook = state.foreground_hook_registered.load(Ordering::SeqCst);
+            let is_game_window = if use_hook {
+                state.is_minecraft_foreground()
+            } else {
+                win::is_minecraft_foreground()
+            };
+            if !is_game_window {
+                if use_hook {
+                    state.wait_for_wakeup(wake_seq, Duration::from_millis(250));
+                } else {
+                    let _ = precise_sleep(Duration::from_millis(10), &state, Some(wake_seq));
+                }
+                continue;
+            }
+        }
+
         let (mut min_cps, mut max_cps) = match button {
             MouseButton::Left => (cfg.min_cps, cfg.max_cps),
             MouseButton::Right => (cfg.min_right_cps, cfg.max_right_cps),
@@ -105,20 +122,6 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
         let min_interval = hold_duration + Duration::from_millis(1);
         if interval < min_interval {
             interval = min_interval;
-        }
-
-        if cfg.only_in_minecraft {
-            let title = win::active_window_title().to_lowercase();
-            let is_game_window = title.contains("minecraft")
-                || title.contains("javaw")
-                || title.contains("lunar")
-                || title.contains("badlion")
-                || title.contains("feather")
-                || title.contains("cheatbreaker");
-            if !is_game_window {
-                let _ = precise_sleep(Duration::from_millis(50), &state, Some(wake_seq));
-                continue;
-            }
         }
 
         let loop_start = Instant::now();
