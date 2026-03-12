@@ -12,6 +12,8 @@ mod clicker;
 #[cfg(target_os = "windows")]
 mod config;
 #[cfg(target_os = "windows")]
+mod foreground_hook;
+#[cfg(target_os = "windows")]
 mod hotkey;
 #[cfg(target_os = "windows")]
 mod input;
@@ -40,6 +42,14 @@ fn main() -> eframe::Result<()> {
     let config_path = PathBuf::from("config.txt");
     let config = config::load_config(&config_path);
     let state = Arc::new(runtime::RuntimeState::new(config));
+    state.set_minecraft_foreground(win::is_minecraft_foreground());
+
+    let _foreground_hook = foreground_hook::spawn_foreground_hook_thread(state.clone());
+    if _foreground_hook.is_some() {
+        state
+            .foreground_hook_registered
+            .store(true, Ordering::SeqCst);
+    }
 
     let _left_worker = clicker::spawn_click_worker(state.clone(), clicker::MouseButton::Left);
     let _right_worker = clicker::spawn_click_worker(state.clone(), clicker::MouseButton::Right);
