@@ -94,10 +94,18 @@ fn run_worker(state: Arc<RuntimeState>, button: MouseButton) {
             min_cps as f64
         };
         
-        let interval = Duration::from_secs_f64(1.0 / target_cps.max(1.0));
-        let random_hold = Duration::from_millis(rng.gen_range(6..=11)); // major 
-        let max_hold = interval.mul_f64(0.5);
-        let hold_duration = random_hold.min(max_hold);
+        let mut interval = Duration::from_secs_f64(1.0 / target_cps.max(1.0));
+
+        // Keep a consistent, safe mouse-down duration to avoid dropped clicks.
+        let hold_base = Duration::from_millis(6);
+        let hold_jitter = Duration::from_millis(rng.gen_range(0..=1));
+        let hold_duration = hold_base + hold_jitter;
+
+        // If CPS is too high to fit the hold time, clamp the interval.
+        let min_interval = hold_duration + Duration::from_millis(1);
+        if interval < min_interval {
+            interval = min_interval;
+        }
 
         if cfg.only_in_minecraft {
             let title = win::active_window_title().to_lowercase();
